@@ -1,0 +1,29 @@
+#Binaries
+bin/
+*.exe
+*.out
+
+#Go
+vendor/
+*.test
+*.cover
+
+#Env files
+.env
+.env.*
+!.env.example
+
+#IDE
+.idea/
+.vscode/
+*.swp
+
+#OS
+.DS_Store
+
+#Docker volumes
+data/
+
+#Generated proto code
+**/*.pb.go
+**/*_grpc.pb.go
