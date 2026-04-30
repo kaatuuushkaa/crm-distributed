@@ -1,0 +1,267 @@
+version: "3.9"
+
+#ANCHORS
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - crm-net
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-files: "3"
+
+#INFRASTRUCUTURE
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    container_name: crm-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    profiles: ["dev", "full", "monitoring"]
+
+  redis:
+    <<: *service-defaults
+    image: redis:7-alpine
+    container_name: crm-redis
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging: *default-logging
+    profiles: ["dev", "full", "monitoring"]
+
+  kafka:
+    <<: *service-defaults
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: crm-kafka
+    ports:
+      - "9092:9092" #localhost
+      - "9093:9093" #controller KRaft
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker, controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+    profiles: ["dev", "full", "monitoring"]
+
+  kafka-ui:
+    <<: *service-defaults
+    image: provectuslabs/kafka-ui:latest
+    container_name: crm-kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    logging: *default-logging
+    profiles: ["dev", "full", "monitoring"]
+
+  minio:
+    <<: *service-defaults
+    image: minio/minio:latest
+    container_name: crm-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    profiles: ["dev", "full", "monitoring"]
+
+#MICROSERVICES
+
+  task-service:
+    <<: *service-defaults
+    build:
+      context: ..
+      dockerfile: deploy/docker/task-service.Dockerfile
+    container_name: crm-task-service
+    ports:
+      - "8080:8080"
+    env_file: ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q0- http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    profiles: ["full", "monitoring"]
+
+  notification-service:
+    <<: *service-defaults
+    build:
+      context: ..
+      dockerfile: deploy/docker/notification-service.Dockerfile
+    container_name: crm-notification-service
+    ports:
+      - "50051:50051"
+    env_file: ../.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q0- http://localhost:8081/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    profiles: ["full", "monitoring"]
+
+  document-service:
+    <<: *service-defaults
+    build:
+      context: ..
+      dockerfile: deploy/docker/document-service.Dockerfile
+    container_name: crm-document-service
+    ports:
+      - "50052:50052"
+    env_file: ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q0- http://localhost:8082/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    profiles: ["full", "monitoring"]
+
+#MONITORING
+
+  prometheus:
+    <<: *service-defaults
+    image: prom/prometheus:latest
+    container_name: crm-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    logging: *default-logging
+    profiles: ["monitoring"]
+
+  grafana:
+    <<: *service-defaults
+    image: grafana/grafana:latest
+    container_name: crm-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    logging: *default-logging
+    profiles: ["monitoring"]
+
+  loki:
+    <<: *service-defaults
+    image: grafana/loki:latest
+    container_name: crm-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    logging: *default-logging
+    profiles: ["monitoring"]
+
+  jaeger:
+    <<: *service-defaults
+    image: jaegertracing/all-in-one:latest
+    container_name: crm-jaeger
+    ports:
+      - "16686:16686"
+      - "14628:14268"
+      - "6831:6831/udp"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    logging: *default-logging
+    profiles: ["monitoring"]
+
+#NETWORKS AND VOLUMES
+networks:
+  crm-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
