@@ -47,7 +47,7 @@ type Task struct {
 	CreatedBy     string
 	ResponsibleBy string
 	ImplementBy   string
-	ManagedBy    string
+	ManagedBy     string
 	FinishedBy    string
 
 	//соисполнитель и наблюдатель
@@ -98,7 +98,7 @@ func NewTask(name string, federationUUID, companyUUID, projectUUID uuid.UUID, cr
 
 	uid := uuid.New()
 
-	path := lo.WithoutEmpty(lo.Uniq(append(opts.ParentPath, uid.String()))
+	path := lo.WithoutEmpty(lo.Uniq(append(opts.ParentPath, uid.String())))
 
 	allPeople := lo.WithoutEmpty(lo.Uniq([]string{
 		createdBy,
@@ -108,51 +108,51 @@ func NewTask(name string, federationUUID, companyUUID, projectUUID uuid.UUID, cr
 	}))
 	allPeople = append(allPeople, lo.WithoutEmpty(opts.CoWorkersBy)...)
 
-	return Task {
-		UUID: uid,
-		Name: name,
-		Description: opts.Description,
+	return Task{
+		UUID:           uid,
+		Name:           name,
+		Description:    opts.Description,
 		FederationUUID: federationUUID,
-		CompanyUUID: companyUUID,
-		ProjectUUID: projectUUID,
-		CreatedBy: createdBy,
-		ManagedBy: opts.ManagedBy,
-		ResponsibleBy: opts.ResponcibleBy,
-		ImplementBy: opts.ImplementBy,
-		CoWorkersBy: lo.WithoutEmpty(lo.Uniq(opts.CoWorkersBy)),
-		Tags: lo.WithoutEmpty(lo.Uniq(opts.Tags)),
-		People: allPeople,
-		Path: path,
-		Priority: opts.Priority,
-		Icon: opts.Icon,
-		FinishTo: opts.FinishTo,
-		Fields: make(map[string]any),
-		RawFields: make(map[string]any),
-		Meta: make(map[string]any),
-		Dirty: make(map[string]any),
-		CreatedAt: time.Now(),,
+		CompanyUUID:    companyUUID,
+		ProjectUUID:    projectUUID,
+		CreatedBy:      createdBy,
+		ManagedBy:      opts.ManagedBy,
+		ResponsibleBy:  opts.ResponsibleBy,
+		ImplementBy:    opts.ImplementBy,
+		CoWorkersBy:    lo.WithoutEmpty(lo.Uniq(opts.CoWorkersBy)),
+		Tags:           lo.WithoutEmpty(lo.Uniq(opts.Tags)),
+		People:         allPeople,
+		Path:           path,
+		Priority:       opts.Priority,
+		Icon:           opts.Icon,
+		FinishTo:       opts.FinishTo,
+		Fields:         make(map[string]any),
+		RawFields:      make(map[string]any),
+		Meta:           make(map[string]any),
+		Dirty:          make(map[string]any),
+		CreatedAt:      time.Now(),
 	}, nil
 }
 
-//опциональные параметры создания задачи
-//выделены в отдельную структуру чтобы не раздувать NewTask
+// опциональные параметры создания задачи
+// выделены в отдельную структуру чтобы не раздувать NewTask
 type TaskCreateOptions struct {
-	Description string
-	ParentPath []string
-	Tags []string
-	CoWorkersBy []string
-	ImplementBy string
+	Description   string
+	ParentPath    []string
+	Tags          []string
+	CoWorkersBy   []string
+	ImplementBy   string
 	ResponsibleBy string
-	ManagedBy string
-	Priority int
-	Icon string
-	FinishTo *time.Time
+	ManagedBy     string
+	Priority      int
+	Icon          string
+	FinishTo      *time.Time
 }
 
-//обновляет название задачи с валидацией
-//сохраняет предыдущее значение в Dirty для истории изменений
+// обновляет название задачи с валидацией
+// сохраняет предыдущее значение в Dirty для истории изменений
 func (t *Task) PatchName(name string) error {
-	if len(name) < 3 || len(name)>100 {
+	if len(name) < 3 || len(name) > 100 {
 		return errors.New("название должно быть от 3 до 100 символов")
 	}
 
@@ -161,8 +161,9 @@ func (t *Task) PatchName(name string) error {
 
 	return nil
 }
-//переводит задачу в новый статус
-//возвращает путь переходов(мжет быть несколько шагов) и ошибку
+
+// переводит задачу в новый статус
+// возвращает путь переходов(мжет быть несколько шагов) и ошибку
 func (t *Task) PatchStatus(newStatus int, opts ProjectOptions, comment string, sg *StatusGraph) ([]string, error) {
 	if newStatus == t.Status {
 		return nil, errors.New("задача уже имеет этот статус")
@@ -173,7 +174,7 @@ func (t *Task) PatchStatus(newStatus int, opts ProjectOptions, comment string, s
 	}
 
 	if sg == nil || len(sg.Graph) == 0 {
-		sg = defaultStatusGraph()
+		sg, _ = defaultStatusGraph()
 	}
 
 	sg.Current = fmt.Sprint(t.Status)
@@ -183,7 +184,7 @@ func (t *Task) PatchStatus(newStatus int, opts ProjectOptions, comment string, s
 		return nil, fmt.Errorf("переход из статуса %d в %d не разрешен", t.Status, newStatus)
 	}
 
-	if newStatus== StatusCancel && opts.RequireCancelComment() && comment == "" {
+	if newStatus == StatusCancel && opts.RequireCancelComment() && comment == "" {
 		return nil, errors.New("при отмене задачи необходимо указать причину")
 	}
 
@@ -205,10 +206,13 @@ func (t *Task) recordDirty(field string, value any) {
 	t.Dirty[strings.ToLower(field)] = value
 }
 
-//возвращает граф переходов статусов по умолчанию
-//используется если в проекте не задан кастомный граф
-func defaultStatusGraph() *StatusGraph {
-	sg := NewStatusGraph("0")
+// возвращает граф переходов статусов по умолчанию
+// используется если в проекте не задан кастомный граф
+func defaultStatusGraph() (*StatusGraph, error) {
+	sg, err := NewStatusGraph("0")
+	if err != nil {
+		return nil, err
+	}
 	sg.Graph = map[string][]string{
 		"0": {"1"},
 		"1": {"2"},
@@ -219,28 +223,28 @@ func defaultStatusGraph() *StatusGraph {
 		"6": {"2"},
 	}
 
-	return sg
+	return sg, nil
 }
 
 type Activity struct {
-	UUID uuid.UUID
-	EntityUUID uuid.UUID
-	EntityType string
+	UUID        uuid.UUID
+	EntityUUID  uuid.UUID
+	EntityType  string
 	Description string
-	Type int
-	Meta map[string]any
-	CreatedBy User
-	CreatedAt time.Time
+	Type        int
+	Meta        map[string]any
+	CreatedBy   User
+	CreatedAt   time.Time
 }
 
-//фиксирует момент приостановки задачи с причиной
-//используется для анализа времени простоя задачё
+// фиксирует момент приостановки задачи с причиной
+// используется для анализа времени простоя задачё
 type Stop struct {
-	UUID uuid.UUID `json:"uuid"`
-	StatusID int `json:"status_id"`
-	StatusName string `json:"status_name"`
-	Comment string `json:"comment"`
-	CreatedBy string  `json:"created_by"`
+	UUID          uuid.UUID `json:"uuid"`
+	StatusID      int       `json:"status_id"`
+	StatusName    string    `json:"status_name"`
+	Comment       string    `json:"comment"`
+	CreatedBy     string    `json:"created_by"`
 	CreatedByUUID uuid.UUID `json:"created_by_uuid"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt     time.Time `json:"created_at"`
 }
