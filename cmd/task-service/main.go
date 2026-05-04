@@ -42,7 +42,7 @@ func main() {
 		"built_at", builtAt,
 	)
 
-	db, err := postgres.New(cfg.Postgres, true)
+	db, err := postgres.New(cfg.Postgres, log)
 	if err != nil {
 		log.Error("failed to connect to postgres", "error", err)
 		os.Exit(1)

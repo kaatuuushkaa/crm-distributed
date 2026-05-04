@@ -1,19 +1,16 @@
-// Package postgres provides a GORM-based PostgreSQL client with structured
-// logging via slog, Prometheus metrics, and context-aware helpers.
 package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
-	"gorm.io/gorm/utils"
-	"gorm.io/plugin/prometheus"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type Config struct {
@@ -33,108 +30,122 @@ func (c Config) DSN() string {
 }
 
 type DB struct {
-	*gorm.DB
+	db            *sql.DB
+	log           *slog.Logger
+	queryDuration *prometheus.HistogramVec
 }
 
-func New(cfg Config, enableMetrics bool) (*DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.DSN()), &gorm.Config{
-		TranslateError:  true, // gorm.ErrRecordNotFound вместо raw pg ошибки
-		CreateBatchSize: 1000,
-		Logger:          newSlogAdapter(),
-	})
+func New(cfg Config, log *slog.Logger) (*DB, error) {
+	db, err := sql.Open("pgx", cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}
 
-	if enableMetrics {
-		if err = db.Use(prometheus.New(prometheus.Config{
-			DBName:          cfg.DBName,
-			RefreshInterval: 15, // секунды между обновлением метрик
-		})); err != nil {
-			return nil, fmt.Errorf("register prometheus plugin: %w", err)
-		}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err = db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("get underlying sql.DB: %w", err)
-	}
+	queryDuration := promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "postgres_query_duration_seconds",
+			Help:    "Длительность выполнения SQL запросов в секундах.",
+			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5},
+		},
+		[]string{"operation"},
+	)
 
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetConnMaxLifetime(5 * time.Minute)
-
-	return &DB{db}, nil
+	return &DB{
+		db:            db,
+		log:           log,
+		queryDuration: queryDuration,
+	}, nil
 }
 
 func (d *DB) Ping(ctx context.Context) error {
-	sqlDB, err := d.DB.DB()
-	if err != nil {
-		return fmt.Errorf("get sql.DB: %w", err)
-	}
-
-	return sqlDB.PingContext(ctx)
+	return d.db.PingContext(ctx)
 }
 
 func (d *DB) Close() error {
-	sqlDB, err := d.DB.DB()
+	return d.db.Close()
+}
+
+func (d *DB) QueryContext(ctx context.Context, operation, query string, args ...any) (*sql.Rows, error) {
+	start := time.Now()
+
+	rows, err := d.db.QueryContext(ctx, query, args...)
+
+	d.observe(ctx, operation, time.Since(start), err)
+
 	if err != nil {
-		return fmt.Errorf("get sql.DB: %w", err)
+		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
 
-	return sqlDB.Close()
+	return rows, nil
 }
 
-type slogAdapter struct {
-	slowThreshold time.Duration
+func (d *DB) QueryRowContext(ctx context.Context, operation, query string, args ...any) *sql.Row {
+	start := time.Now()
+
+	row := d.db.QueryRowContext(ctx, query, args...)
+
+	d.observe(ctx, operation, time.Since(start), nil)
+
+	return row
 }
 
-func newSlogAdapter() gormlogger.Interface {
-	return &slogAdapter{
-		slowThreshold: 200 * time.Millisecond,
+func (d *DB) ExecContext(ctx context.Context, operation, query string, args ...any) (sql.Result, error) {
+	start := time.Now()
+
+	result, err := d.db.ExecContext(ctx, query, args...)
+
+	d.observe(ctx, operation, time.Since(start), err)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
+
+	return result, nil
 }
 
-func (a *slogAdapter) LogMode(_ gormlogger.LogLevel) gormlogger.Interface {
-	return a
-}
-
-func (a *slogAdapter) Info(ctx context.Context, msg string, args ...any) {
-	slog.InfoContext(ctx, fmt.Sprintf(msg, args...))
-}
-
-func (a *slogAdapter) Warn(ctx context.Context, msg string, args ...any) {
-	slog.WarnContext(ctx, fmt.Sprintf(msg, args...))
-}
-
-func (a *slogAdapter) Error(ctx context.Context, msg string, args ...any) {
-	slog.ErrorContext(ctx, fmt.Sprintf(msg, args...))
-}
-
-func (a *slogAdapter) Trace(
-	ctx context.Context,
-	begin time.Time,
-	fc func() (sql string, rowsAffected int64),
-	err error,
-) {
-	elapsed := time.Since(begin)
-	sql, rows := fc()
-
-	attrs := []any{
-		"elapsed_ms", elapsed.Milliseconds(),
-		"rows", rows,
-		"sql", sql,
-		"caller", utils.FileWithLineNum(),
+func (d *DB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	tx, err := d.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
+
+	return tx, nil
+}
+
+func (d *DB) observe(ctx context.Context, operation string, elapsed time.Duration, err error) {
+	d.queryDuration.WithLabelValues(operation).Observe(elapsed.Seconds())
+
+	const slowThreshold = 200 * time.Millisecond
 
 	switch {
-	case err != nil && !errors.Is(err, gorm.ErrRecordNotFound):
-		slog.ErrorContext(ctx, "gorm query error",
-			append(attrs, "error", err)...)
-	case elapsed > a.slowThreshold:
-		slog.WarnContext(ctx, "gorm slow query",
-			append(attrs, "threshold_ms", a.slowThreshold.Milliseconds())...)
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		d.log.ErrorContext(ctx, "postgres query error",
+			"operation", operation,
+			"elapsed_ms", elapsed.Milliseconds(),
+			"error", err,
+		)
+	case elapsed > slowThreshold:
+		d.log.WarnContext(ctx, "postgres slow query",
+			"operation", operation,
+			"elapsed_ms", elapsed.Milliseconds(),
+			"threshold_ms", slowThreshold.Milliseconds(),
+		)
 	default:
-		slog.DebugContext(ctx, "gorm query", attrs...)
+		d.log.DebugContext(ctx, "postgres query",
+			"operation", operation,
+			"elapsed_ms", elapsed.Milliseconds(),
+		)
 	}
 }
