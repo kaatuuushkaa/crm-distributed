@@ -2,6 +2,9 @@ package main
 
 import (
 	"crm-distributed/cmd/task-service/config"
+	internaljwt "crm-distributed/cmd/task-service/internal/jwt"
+	internalmiddleware "crm-distributed/cmd/task-service/internal/middleware"
+	"crm-distributed/cmd/task-service/internal/task"
 	"crm-distributed/shared/pkg/health"
 	"crm-distributed/shared/pkg/postgres"
 	"crm-distributed/shared/pkg/redis"
@@ -66,14 +69,17 @@ func server(
 	})
 
 	e.GET("/metrics", echoprometheus.NewHandler())
-
+	jwtService := internaljwt.New(cfg.JWTSecret)
 	api := e.Group("/api/v1")
-
+	protected := api.Group("", internalmiddleware.Auth(jwtService))
 	// TODO: хэндлеры по мере их написания:
 	// registerTaskRoutes(api, taskHandler)
 	// registerProjectRoutes(api, projectHandler)
 	// registerUserRoutes(api, userHandler)
-	_ = api
+	taskRepo := task.NewRepository(db, log)
+	taskUsecase := task.NewUsecase(taskRepo, log)
+	taskHandler := task.NewHandler(taskUsecase)
+	taskHandler.Register(protected)
 
 	return &http.Server{
 		Addr:    cfg.Addr(),
