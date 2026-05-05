@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crm-distributed/cmd/task-service/internal/federation"
+	"crm-distributed/cmd/task-service/internal/project"
 	"log/slog"
 	"net/http"
 	"time"
@@ -84,8 +86,15 @@ func Server(
 	taskHandler := task.NewHandler(taskUsecase)
 	taskHandler.Register(protected)
 
-	// TODO: feat(task-service): add project handler
-	// TODO: feat(task-service): add federation handler
+	projectRepo := project.NewRepository(db, log)
+	projectUsecase := project.NewUsecase(projectRepo, kafkaProducer, log)
+	projectHandler := project.NewHandler(projectUsecase)
+	projectHandler.Register(protected)
+
+	federationRepo := federation.NewRepository(db, log)
+	federationUsecase := federation.NewUsecase(federationRepo, kafkaProducer, log)
+	federationHandler := federation.NewHandler(federationUsecase)
+	federationHandler.Register(protected)
 
 	return &http.Server{
 		Addr:         cfg.Addr(),
