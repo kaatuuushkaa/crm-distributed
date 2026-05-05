@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -14,8 +15,6 @@ var (
 	ErrProjectInvalid  = errors.New("некорректные данные проекта")
 )
 
-// проект внутри окманды
-// содержит участников задачи и кастомную схему статусов
 type Project struct {
 	UUID           uuid.UUID
 	FederationUUID uuid.UUID
@@ -25,14 +24,9 @@ type Project struct {
 	CreatedBy      string
 	ResponsibleBy  string
 
-	//кастомный граф переходов между статусами задач
 	StatusGraph *StatusGraph
-
-	//настройка поведения проекта
-	Options ProjectOptions
-
-	//кастомные поля звдвч внутри проекта
-	Fields []CompanyField
+	Options     ProjectOptions
+	Fields      []CompanyField
 
 	Users      []ProjectUser
 	StatusSort []int
@@ -40,14 +34,18 @@ type Project struct {
 
 	StatusCode      int
 	StatusUpdatedAt *time.Time
-	Meta            datatypes.JSON
+	Meta            []byte
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
 }
 
-func NewProject(name, description string, federationUUID, companyUUID uuid.UUID, createdBy, responsibleBy string) (*Project, error) {
+func NewProject(
+	name, description string,
+	federationUUID, companyUUID uuid.UUID,
+	createdBy, responsibleBy string,
+) (*Project, error) {
 	if len(name) < 3 || len(name) > 100 {
 		return nil, fmt.Errorf("%w: название от 3 до 100 символов", ErrProjectInvalid)
 	}
@@ -64,13 +62,14 @@ func NewProject(name, description string, federationUUID, companyUUID uuid.UUID,
 		CompanyUUID:    companyUUID,
 		CreatedBy:      createdBy,
 		ResponsibleBy:  responsibleBy,
+		Meta:           []byte("{}"),
 		CreatedAt:      time.Now(),
 	}, nil
 }
 
 func (p *Project) ChangeName(name string) error {
 	if len(name) < 3 || len(name) > 100 {
-		return errors.New("название проекта от 3 о 100 символов")
+		return errors.New("название проекта от 3 до 100 символов")
 	}
 
 	p.Name = name
@@ -84,10 +83,10 @@ func (p *Project) ChangeDescription(description string) error {
 	}
 
 	p.Description = description
+
 	return nil
 }
 
-// настройки поведения проекта
 type ProjectOptions struct {
 	RequireCancelationComment *bool   `json:"require_cancelation_comment,omitempty"`
 	RequireDoneComment        *bool   `json:"require_done_comment,omitempty"`
@@ -95,16 +94,14 @@ type ProjectOptions struct {
 	Color                     *string `json:"color,omitempty"`
 }
 
-func (o ProjectOptions) RequireCancelComment() bool {
+func (o ProjectOptions) NeedsCancelComment() bool {
 	return o.RequireCancelationComment != nil && *o.RequireCancelationComment
 }
 
-func (o ProjectOptions) RequireDoneComment() bool {
+func (o ProjectOptions) NeedsDoneComment() bool {
 	return o.RequireDoneComment != nil && *o.RequireDoneComment
 }
 
-// реализация sql.Scanner и driver.Valuer
-// для автоматической сериализации ProjectOptions в JSONB PostgreSQL
 func (o *ProjectOptions) Scan(value any) error {
 	bytes, ok := value.([]byte)
 	if !ok {
@@ -133,7 +130,6 @@ func (o ProjectOptions) Value() (driver.Value, error) {
 	return json.Marshal(o)
 }
 
-// тип данных кастомного поля задачи
 type FieldDataType int
 
 const (
@@ -154,7 +150,6 @@ const (
 	FieldPeople    FieldDataType = 14
 )
 
-// строкове представление типа поля
 func (f FieldDataType) String() string {
 	names := map[FieldDataType]string{
 		FieldInteger: "integer", FieldFloat: "float", FieldString: "string",
@@ -171,8 +166,7 @@ func (f FieldDataType) String() string {
 	return "unknown"
 }
 
-// кастомное поле задачи на уровне компании
-// позволяет бизнесу добавлять произвольные атрибуты к задачам
+// CompanyField — кастомное поле задачи определённое на уровне компании.
 type CompanyField struct {
 	UUID        uuid.UUID
 	Hash        string
@@ -185,13 +179,12 @@ type CompanyField struct {
 	Style       string `validate:"lte=20"`
 	CreatedBy   string
 
-	//статусы при которых поле обязательно к заполнению
 	RequiredOnStatuses []int
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
-	Meta      datatypes.JSON
+	Meta      []byte
 }
 
 type ProjectUser struct {
@@ -203,7 +196,9 @@ type ProjectUser struct {
 	AddedAt        time.Time `json:"added_at"`
 }
 
-func NewProjectUser(federationUUID, companyUUID, projectUUID, userUUID uuid.UUID) (*ProjectUser, error) {
+func NewProjectUser(
+	federationUUID, companyUUID, projectUUID, userUUID uuid.UUID,
+) (*ProjectUser, error) {
 	if federationUUID == uuid.Nil || companyUUID == uuid.Nil ||
 		projectUUID == uuid.Nil || userUUID == uuid.Nil {
 		return nil, errors.New("все UUID обязательны для создания участника проекта")

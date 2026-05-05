@@ -184,11 +184,11 @@ func (t *Task) PatchStatus(newStatus int, opts ProjectOptions, comment string, s
 		return nil, fmt.Errorf("переход из статуса %d в %d не разрешен", t.Status, newStatus)
 	}
 
-	if newStatus == StatusCancel && opts.RequireCancelComment() && comment == "" {
+	if newStatus == StatusCancel && opts.NeedsCancelComment() && comment == "" {
 		return nil, errors.New("при отмене задачи необходимо указать причину")
 	}
 
-	if newStatus == StatusDone && opts.RequireDoneComment() && comment == "" {
+	if newStatus == StatusDone && opts.NeedsDoneComment() && comment == "" {
 		return nil, errors.New("при завершении задачи необходимо указать причину")
 	}
 

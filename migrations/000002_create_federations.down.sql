@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS federation_users CASCADE;
+DROP TABLE IF EXISTS federations CASCADE;
