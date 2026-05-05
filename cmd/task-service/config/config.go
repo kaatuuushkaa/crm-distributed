@@ -1,20 +1,25 @@
 package config
 
 import (
+	"fmt"
+
+	"github.com/caarlos0/env/v6"
+
+	"crm-distributed/shared/pkg/kafka"
 	pkgpostgres "crm-distributed/shared/pkg/postgres"
 	pkgredis "crm-distributed/shared/pkg/redis"
-	"fmt"
-	"github.com/caarlos0/env/v6"
 )
 
 type Config struct {
-	Env              string `env:"APP_ENV" envDefault:"development"`
-	Port             int    `env:"TASK_SERVICE_PORT" envDefault:"8080"`
-	GracefulTimeout  int    `env:"TASK_SERVICE_GRACEFUL_TIMEOUT" envDefault:"30"`
-	NotifServiceAddr string `env:"TASK_SERVICE_GRPC_ADDR" envDefault:"localhost:50051"`
+	Env              string `env:"APP_ENV"                          envDefault:"development"`
+	Port             int    `env:"TASK_SERVICE_PORT"                envDefault:"8080"`
+	GracefulTimeout  int    `env:"TASK_SERVICE_GRACEFUL_TIMEOUT"    envDefault:"30"`
+	NotifServiceAddr string `env:"TASK_SERVICE_GRPC_ADDR"          envDefault:"localhost:50051"`
 	JWTSecret        string `env:"JWT_SECRET,required"`
-	Postgres         pkgpostgres.Config
-	Redis            pkgredis.Config
+
+	Postgres pkgpostgres.Config
+	Redis    pkgredis.Config
+	Kafka    kafka.Config
 }
 
 func Load() (*Config, error) {

@@ -1,30 +1,33 @@
 package main
 
 import (
-	"crm-distributed/cmd/task-service/config"
-	internaljwt "crm-distributed/cmd/task-service/internal/jwt"
-	internalmiddleware "crm-distributed/cmd/task-service/internal/middleware"
-	"crm-distributed/cmd/task-service/internal/task"
-	"crm-distributed/shared/pkg/health"
-	"crm-distributed/shared/pkg/postgres"
-	"crm-distributed/shared/pkg/redis"
-	"github.com/labstack/echo/v4"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo-contrib/echoprometheus"
+	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+
+	"crm-distributed/cmd/task-service/config"
+	"crm-distributed/cmd/task-service/internal/auth"
+	internaljwt "crm-distributed/cmd/task-service/internal/jwt"
+	internalmiddleware "crm-distributed/cmd/task-service/internal/middleware"
+	"crm-distributed/cmd/task-service/internal/task"
+	"crm-distributed/shared/pkg/health"
+	"crm-distributed/shared/pkg/kafka"
+	"crm-distributed/shared/pkg/postgres"
+	"crm-distributed/shared/pkg/redis"
 )
 
-func server(
+func Server(
 	cfg *config.Config,
 	log *slog.Logger,
 	db *postgres.DB,
 	rdb *redis.Client,
+	kafkaProducer *kafka.Producer,
 ) *http.Server {
 	e := echo.New()
-
 	e.HideBanner = true
 	e.HidePort = true
 
@@ -39,52 +42,54 @@ func server(
 			return nil
 		},
 	}))
-
 	e.Use(middleware.RequestID())
-
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut,
-			http.MethodPatch, http.MethodDelete, http.MethodOptions},
+		AllowMethods: []string{
+			http.MethodGet, http.MethodPost, http.MethodPut,
+			http.MethodPatch, http.MethodDelete, http.MethodOptions,
+		},
 		AllowHeaders: []string{echo.HeaderContentType, echo.HeaderAuthorization},
 	}))
-
 	e.Use(echoprometheus.NewMiddleware("task_service"))
-
 	e.Use(slogMiddleware(log))
 
-	h := health.New(map[string]health.Checker{
+	healthHandler := health.New(map[string]health.Checker{
 		"postgres": db,
 		"redis":    rdb,
 	})
 
 	e.GET("/healthz", func(c echo.Context) error {
-		h.Liveness(c.Response(), c.Request())
+		healthHandler.Liveness(c.Response(), c.Request())
 		return nil
 	})
-
 	e.GET("/readyz", func(c echo.Context) error {
-		h.Readiness(c.Response(), c.Request())
+		healthHandler.Readiness(c.Response(), c.Request())
 		return nil
 	})
-
 	e.GET("/metrics", echoprometheus.NewHandler())
+
 	jwtService := internaljwt.New(cfg.JWTSecret)
+
 	api := e.Group("/api/v1")
 	protected := api.Group("", internalmiddleware.Auth(jwtService))
-	// TODO: хэндлеры по мере их написания:
-	// registerTaskRoutes(api, taskHandler)
-	// registerProjectRoutes(api, projectHandler)
-	// registerUserRoutes(api, userHandler)
+
+	authRepo := auth.NewUserRepository(db, log)
+	authUsecase := auth.NewUsecase(authRepo, jwtService, rdb, log, cfg.Env != "production")
+	authHandler := auth.NewHandler(authUsecase)
+	authHandler.Register(api)
+
 	taskRepo := task.NewRepository(db, log)
-	taskUsecase := task.NewUsecase(taskRepo, log)
+	taskUsecase := task.NewUsecase(taskRepo, kafkaProducer, log)
 	taskHandler := task.NewHandler(taskUsecase)
 	taskHandler.Register(protected)
 
-	return &http.Server{
-		Addr:    cfg.Addr(),
-		Handler: e,
+	// TODO: feat(task-service): add project handler
+	// TODO: feat(task-service): add federation handler
 
+	return &http.Server{
+		Addr:         cfg.Addr(),
+		Handler:      e,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

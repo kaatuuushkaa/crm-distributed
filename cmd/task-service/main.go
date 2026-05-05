@@ -2,10 +2,6 @@ package main
 
 import (
 	"context"
-	"crm-distributed/cmd/task-service/config"
-	"crm-distributed/shared/pkg/logger"
-	"crm-distributed/shared/pkg/postgres"
-	"crm-distributed/shared/pkg/redis"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,6 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"crm-distributed/cmd/task-service/config"
+	"crm-distributed/shared/pkg/kafka"
+	"crm-distributed/shared/pkg/logger"
+	"crm-distributed/shared/pkg/postgres"
+	"crm-distributed/shared/pkg/redis"
 )
 
 var (
@@ -29,7 +31,6 @@ func main() {
 	}
 
 	log := logger.New(cfg.Env)
-
 	log = log.With(
 		"service", "task-service",
 		"version", version,
@@ -50,11 +51,14 @@ func main() {
 
 	defer func() {
 		if err = db.Close(); err != nil {
-			log.Error("failed to close postgres connection", "error", err)
+			log.Error("failed to close postgres", "error", err)
 		}
 	}()
 
-	log.Info("connected to postgres", "host", cfg.Postgres.Host, "db", cfg.Postgres.DBName)
+	log.Info("connected to postgres",
+		"host", cfg.Postgres.Host,
+		"db", cfg.Postgres.DBName,
+	)
 
 	rdb, err := redis.New(cfg.Redis)
 	if err != nil {
@@ -64,15 +68,31 @@ func main() {
 
 	defer func() {
 		if err = rdb.Close(); err != nil {
-			log.Error("failed to close redis connection", "error", err)
+			log.Error("failed to close redis", "error", err)
 		}
 	}()
 
 	log.Info("connected to redis", "host", cfg.Redis.Host)
 
-	srv := server(cfg, log, db, rdb)
+	kafkaProducer, err := kafka.NewProducer(cfg.Kafka, log)
+	if err != nil {
+		log.Warn("failed to connect to kafka, events will not be published",
+			"brokers", cfg.Kafka.Brokers,
+			"error", err,
+		)
 
-	log.Info("http server listening", "addr", cfg.Addr())
+		kafkaProducer = nil
+	} else {
+		defer func() {
+			if err = kafkaProducer.Close(); err != nil {
+				log.Error("failed to close kafka producer", "error", err)
+			}
+		}()
+
+		log.Info("connected to kafka", "brokers", cfg.Kafka.Brokers)
+	}
+
+	srv := Server(cfg, log, db, rdb, kafkaProducer)
 
 	go func() {
 		log.Info("http server listening", "addr", cfg.Addr())
@@ -87,7 +107,6 @@ func main() {
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	sig := <-quit
-
 	log.Info("shutting down", "signal", sig.String())
 
 	shutdownCtx, cancel := context.WithTimeout(
@@ -96,7 +115,7 @@ func main() {
 	)
 	defer cancel()
 
-	if err := srv.Shutdown(shutdownCtx); err != nil {
+	if err = srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("forced shutdown", "error", err)
 		os.Exit(1)
 	}

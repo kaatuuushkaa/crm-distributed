@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"crm-distributed/shared/domain"
+	"crm-distributed/shared/pkg/kafka"
 )
 
 type TaskUsecase interface {
@@ -41,21 +42,17 @@ type UpdateStatusCommand struct {
 }
 
 type taskUsecase struct {
-	repo TaskRepository
-	log  *slog.Logger
-
-	onTaskCreated func(ctx context.Context, task *domain.Task) error
+	repo     TaskRepository
+	producer *kafka.Producer
+	log      *slog.Logger
 }
 
-func NewUsecase(repo TaskRepository, log *slog.Logger) TaskUsecase {
+func NewUsecase(repo TaskRepository, producer *kafka.Producer, log *slog.Logger) TaskUsecase {
 	return &taskUsecase{
-		repo: repo,
-		log:  log,
+		repo:     repo,
+		producer: producer,
+		log:      log,
 	}
-}
-
-func (u *taskUsecase) WithTaskCreatedCallback(fn func(ctx context.Context, task *domain.Task) error) {
-	u.onTaskCreated = fn
 }
 
 func (u *taskUsecase) Create(ctx context.Context, cmd CreateTaskCommand) (*domain.Task, error) {
@@ -99,14 +96,20 @@ func (u *taskUsecase) Create(ctx context.Context, cmd CreateTaskCommand) (*domai
 		"created_by", created.CreatedBy,
 	)
 
-	if u.onTaskCreated != nil {
-		if err = u.onTaskCreated(ctx, created); err != nil {
-			u.log.ErrorContext(ctx, "failed to publish task.created event",
-				"task_uuid", created.UUID,
-				"error", err,
-			)
-		}
-	}
+	u.publishEvent(ctx, kafka.TopicTaskCreated, created.ProjectUUID.String(),
+		kafka.TaskCreatedEvent{
+			TaskUUID:       created.UUID,
+			TaskID:         created.ID,
+			TaskName:       created.Name,
+			FederationUUID: created.FederationUUID,
+			CompanyUUID:    created.CompanyUUID,
+			ProjectUUID:    created.ProjectUUID,
+			CreatedBy:      created.CreatedBy,
+			ImplementBy:    created.ImplementBy,
+			People:         created.People,
+			CreatedAt:      created.CreatedAt,
+		},
+	)
 
 	return created, nil
 }
@@ -135,6 +138,8 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, uid uuid.UUID, cmd Updat
 		return fmt.Errorf("get task for status update: %w", err)
 	}
 
+	oldStatus := task.Status
+
 	_, err = task.PatchStatus(cmd.NewStatus, domain.ProjectOptions{}, cmd.Comment, nil)
 	if err != nil {
 		return fmt.Errorf("patch status: %w", err)
@@ -148,15 +153,40 @@ func (u *taskUsecase) UpdateStatus(ctx context.Context, uid uuid.UUID, cmd Updat
 
 	u.log.InfoContext(ctx, "task status updated",
 		"task_uuid", uid,
+		"old_status", oldStatus,
 		"new_status", cmd.NewStatus,
 		"caller", cmd.CallerEmail,
+	)
+
+	u.publishEvent(ctx, kafka.TopicTaskUpdated, task.ProjectUUID.String(),
+		kafka.TaskUpdatedEvent{
+			TaskUUID:    task.UUID,
+			TaskID:      task.ID,
+			TaskName:    task.Name,
+			ProjectUUID: task.ProjectUUID,
+			CompanyUUID: task.CompanyUUID,
+			ChangedBy:   cmd.CallerEmail,
+			ChangedFields: map[string]any{
+				"status": map[string]any{
+					"old": oldStatus,
+					"new": cmd.NewStatus,
+				},
+			},
+			People:    task.People,
+			UpdatedAt: task.UpdatedAt,
+		},
 	)
 
 	return nil
 }
 
 func (u *taskUsecase) Delete(ctx context.Context, uid uuid.UUID, callerEmail string) error {
-	if err := u.repo.Delete(ctx, uid); err != nil {
+	task, err := u.repo.GetByUUID(ctx, uid)
+	if err != nil {
+		return fmt.Errorf("get task for delete: %w", err)
+	}
+
+	if err = u.repo.Delete(ctx, uid); err != nil {
 		return fmt.Errorf("delete task: %w", err)
 	}
 
@@ -165,5 +195,29 @@ func (u *taskUsecase) Delete(ctx context.Context, uid uuid.UUID, callerEmail str
 		"caller", callerEmail,
 	)
 
+	u.publishEvent(ctx, kafka.TopicTaskDeleted, task.ProjectUUID.String(),
+		kafka.TaskDeletedEvent{
+			TaskUUID:    task.UUID,
+			TaskID:      task.ID,
+			TaskName:    task.Name,
+			ProjectUUID: task.ProjectUUID,
+			DeletedBy:   callerEmail,
+		},
+	)
+
 	return nil
+}
+
+func (u *taskUsecase) publishEvent(ctx context.Context, topic, key string, event any) {
+	if u.producer == nil {
+		return
+	}
+
+	if err := u.producer.Send(ctx, topic, key, event); err != nil {
+		u.log.ErrorContext(ctx, "failed to publish kafka event",
+			"topic", topic,
+			"key", key,
+			"error", err,
+		)
+	}
 }
