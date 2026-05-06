@@ -174,7 +174,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/kaatuuushkaa/crm-distributed)
+        - prefix(crm-distributed)
 
 issues:
   max-same-issues: 0
