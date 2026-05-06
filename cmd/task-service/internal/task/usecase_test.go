@@ -135,7 +135,7 @@ func TestCreateTask(t *testing.T) {
 			repo := newMockRepository()
 			repo.createErr = tt.repoErr
 
-			uc := task.NewUsecase(repo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			uc := task.NewUsecase(repo, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 			got, err := uc.Create(context.Background(), tt.cmd)
 
