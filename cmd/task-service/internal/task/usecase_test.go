@@ -160,7 +160,7 @@ func TestCreateTask(t *testing.T) {
 
 func TestGetByUUID_NotFound(t *testing.T) {
 	repo := newMockRepository()
-	uc := task.NewUsecase(repo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	uc := task.NewUsecase(repo, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	_, err := uc.GetByUUID(context.Background(), uuid.New())
 
