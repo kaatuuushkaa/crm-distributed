@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package notification.v1;
+
+option go_package = "crm-distributed/proto/notification";
+
+service NotificationService {
+  rpc Send(SendRequest) returns (SendResponse);
+  rpc GetUnread(GetUnreadRequest) returns (GetUnreadResponse);
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse);
+}
+
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_TASK_CREATED  = 1;
+  NOTIFICATION_TYPE_TASK_UPDATED  = 2;
+  NOTIFICATION_TYPE_TASK_ASSIGNED = 3;
+  NOTIFICATION_TYPE_REMINDER      = 4;
+}
+
+message SendRequest {
+  repeated string  user_ids = 1;
+  NotificationType type     = 2;
+  string           title    = 3;
+  string           body     = 4;
+  string           ref_id   = 5;
+}
+
+message SendResponse {
+  string notification_id = 1;
+  int32  delivered_count = 2;
+}
+
+message GetUnreadRequest {
+  string user_id = 1;
+  int32  limit   = 2;
+}
+
+message Notification {
+  string           id         = 1;
+  string           user_id    = 2;
+  NotificationType type       = 3;
+  string           title      = 4;
+  string           body       = 5;
+  string           ref_id     = 6;
+  bool             is_read    = 7;
+  int64            created_at = 8;
+}
+
+message GetUnreadResponse {
+  repeated Notification notifications = 1;
+}
+
+message MarkReadRequest {
+  string           user_id   = 1;
+  repeated string  notif_ids = 2;
+}
+
+message MarkReadResponse {
+  int32 updated_count = 1;
+}
