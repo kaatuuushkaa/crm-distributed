@@ -102,3 +102,16 @@ func (c *Client) Publish(ctx context.Context, channel string, payload any) error
 func (c *Client) Subscribe(ctx context.Context, channels ...string) *redis.PubSub {
 	return c.rdb.Subscribe(ctx, channels...)
 }
+
+func (c *Client) Check(ctx context.Context) error {
+	return c.rdb.Ping(ctx).Err()
+}
+
+func (c *Client) Scan(ctx context.Context, cursor uint64, match string, count int64) ([]string, uint64, error) {
+	keys, newCursor, err := c.rdb.Scan(ctx, cursor, match, count).Result()
+	if err != nil {
+		return nil, 0, fmt.Errorf("redis SCAN: %w", err)
+	}
+
+	return keys, newCursor, nil
+}

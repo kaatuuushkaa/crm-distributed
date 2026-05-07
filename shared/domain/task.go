@@ -119,10 +119,11 @@ func NewTask(name string, federationUUID, companyUUID, projectUUID uuid.UUID, cr
 		ManagedBy:      opts.ManagedBy,
 		ResponsibleBy:  opts.ResponsibleBy,
 		ImplementBy:    opts.ImplementBy,
-		CoWorkersBy:    lo.WithoutEmpty(lo.Uniq(opts.CoWorkersBy)),
-		Tags:           lo.WithoutEmpty(lo.Uniq(opts.Tags)),
-		People:         allPeople,
-		Path:           path,
+		CoWorkersBy:    nonNilSlice(lo.WithoutEmpty(lo.Uniq(opts.CoWorkersBy))),
+		WatchBy:        []string{},
+		Tags:           nonNilSlice(lo.WithoutEmpty(lo.Uniq(opts.Tags))),
+		People:         nonNilSlice(allPeople),
+		Path:           nonNilSlice(path),
 		Priority:       opts.Priority,
 		Icon:           opts.Icon,
 		FinishTo:       opts.FinishTo,
@@ -247,4 +248,11 @@ type Stop struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedByUUID uuid.UUID `json:"created_by_uuid"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+func nonNilSlice(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

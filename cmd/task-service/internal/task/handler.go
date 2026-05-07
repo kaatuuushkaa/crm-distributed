@@ -1,6 +1,7 @@
 package task
 
 import (
+	"crm-distributed/cmd/task-service/internal/middleware"
 	"errors"
 	"fmt"
 	"net/http"
@@ -109,8 +110,7 @@ func (h *Handler) create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	callerEmail, _ := c.Get("caller_email").(string)
-
+	callerEmail, _ := c.Get(middleware.KeyCallerEmail).(string)
 	task, err := h.uc.Create(c.Request().Context(), CreateTaskCommand{
 		Name:           req.Name,
 		Description:    req.Description,
@@ -201,8 +201,7 @@ func (h *Handler) updateStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	callerEmail, _ := c.Get("caller_email").(string)
-
+	callerEmail, _ := c.Get(middleware.KeyCallerEmail).(string)
 	if err = h.uc.UpdateStatus(c.Request().Context(), uid, UpdateStatusCommand{
 		NewStatus:   req.Status,
 		Comment:     req.Comment,
@@ -221,8 +220,7 @@ func (h *Handler) delete(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid task uuid")
 	}
 
-	callerEmail, _ := c.Get("caller_email").(string)
-
+	callerEmail, _ := c.Get(middleware.KeyCallerEmail).(string)
 	if err = h.uc.Delete(c.Request().Context(), uid, callerEmail); err != nil {
 		return h.handleError(c, err)
 	}

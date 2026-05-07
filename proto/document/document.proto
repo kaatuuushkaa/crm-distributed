@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package document.v1;
+
+option go_package = "crm-distributed/proto/document";
+
+service DocumentService {
+  rpc CreateLegalEntity(CreateLegalEntityRequest) returns (CreateLegalEntityResponse);
+  rpc GetLegalEntity(GetLegalEntityRequest)       returns (GetLegalEntityResponse);
+  rpc CreateBankAccount(CreateBankAccountRequest) returns (CreateBankAccountResponse);
+  rpc ListBankAccounts(ListBankAccountsRequest)   returns (ListBankAccountsResponse);
+}
+
+message CreateLegalEntityRequest {
+  string company_id = 1;
+  string name       = 2;
+  string inn        = 3;
+  string kpp        = 4;
+  string ogrn       = 5;
+  string address    = 6;
+}
+
+message CreateLegalEntityResponse {
+  string id         = 1;
+  int64  created_at = 2;
+}
+
+message GetLegalEntityRequest {
+  string id = 1;
+}
+
+message LegalEntity {
+  string id         = 1;
+  string company_id = 2;
+  string name       = 3;
+  string inn        = 4;
+  string kpp        = 5;
+  string ogrn       = 6;
+  string address    = 7;
+  int64  created_at = 8;
+}
+
+message GetLegalEntityResponse {
+  LegalEntity entity = 1;
+}
+
+message CreateBankAccountRequest {
+  string legal_entity_id = 1;
+  string bank_name       = 2;
+  string bik             = 3;
+  string account_number  = 4;
+  string corr_account    = 5;
+}
+
+message CreateBankAccountResponse {
+  string id         = 1;
+  int64  created_at = 2;
+}
+
+message ListBankAccountsRequest {
+  string legal_entity_id = 1;
+}
+
+message BankAccount {
+  string id              = 1;
+  string legal_entity_id = 2;
+  string bank_name       = 3;
+  string bik             = 4;
+  string account_number  = 5;
+  string corr_account    = 6;
+  int64  created_at      = 7;
+}
+
+message ListBankAccountsResponse {
+  repeated BankAccount accounts = 1;
+}
