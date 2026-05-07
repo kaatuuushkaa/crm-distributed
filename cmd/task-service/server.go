@@ -3,6 +3,7 @@ package main
 import (
 	"crm-distributed/cmd/task-service/internal/federation"
 	"crm-distributed/cmd/task-service/internal/project"
+	"github.com/go-playground/validator/v10"
 	"log/slog"
 	"net/http"
 	"time"
@@ -30,6 +31,7 @@ func Server(
 	kafkaProducer *kafka.Producer,
 ) *http.Server {
 	e := echo.New()
+	e.Validator = &requestValidator{v: validator.New()}
 	e.HideBanner = true
 	e.HidePort = true
 
@@ -124,4 +126,15 @@ func slogMiddleware(log *slog.Logger) echo.MiddlewareFunc {
 			return err
 		}
 	}
+}
+
+type requestValidator struct {
+	v *validator.Validate
+}
+
+func (rv *requestValidator) Validate(i any) error {
+	if err := rv.v.Struct(i); err != nil {
+		return err
+	}
+	return nil
 }
