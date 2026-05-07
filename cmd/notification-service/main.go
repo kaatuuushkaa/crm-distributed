@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crm-distributed/cmd/notification-service/internal/hub"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -38,12 +39,13 @@ const (
 )
 
 type config struct {
-	Env      string `env:"APP_ENV"        envDefault:"development"`
-	HTTPPort int    `env:"HTTP_PORT"      envDefault:"8081"`
-	GRPCPort int    `env:"GRPC_PORT"      envDefault:"50051"`
-	LogLevel string `env:"LOG_LEVEL"      envDefault:"info"`
-	Redis    redis.Config
-	Kafka    kafka.ConsumerConfig
+	Env       string `env:"APP_ENV"        envDefault:"development"`
+	HTTPPort  int    `env:"HTTP_PORT"      envDefault:"8081"`
+	GRPCPort  int    `env:"GRPC_PORT"      envDefault:"50051"`
+	LogLevel  string `env:"LOG_LEVEL"      envDefault:"info"`
+	JWTSecret string `env:"JWT_SECRET,required"`
+	Redis     redis.Config
+	Kafka     kafka.ConsumerConfig
 }
 
 func main() {
@@ -81,7 +83,12 @@ func run(cfg *config, log *slog.Logger) error {
 	kafkaMetrics := metrics.NewKafkaMetrics("notification_service")
 	notifUC := usecase.NewNotificationUsecase(notifRepo, rdb, kafkaMetrics, log)
 
-	httpSrv := newHTTPServer(cfg.HTTPPort, log, rdb)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	wsHub := hub.New(ctx, rdb, log)
+	defer wsHub.Shutdown()
+	httpSrv := newHTTPServer(cfg, log, rdb, wsHub)
 
 	grpcSrv := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -105,9 +112,6 @@ func run(cfg *config, log *slog.Logger) error {
 			log.Error("kafka consumer close", "error", closeErr)
 		}
 	}()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
 
 	g, gCtx := errgroup.WithContext(ctx)
 
@@ -162,7 +166,7 @@ func run(cfg *config, log *slog.Logger) error {
 	return nil
 }
 
-func newHTTPServer(port int, log *slog.Logger, rdb *redis.Client) *http.Server {
+func newHTTPServer(cfg *config, log *slog.Logger, rdb *redis.Client, wsHub *hub.Hub) *http.Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -184,8 +188,11 @@ func newHTTPServer(port int, log *slog.Logger, rdb *redis.Client) *http.Server {
 	})
 	e.GET("/metrics", echoprometheus.NewHandler())
 
+	wsHandler := handler.NewWSHandler(wsHub, cfg.JWTSecret, log)
+	wsHandler.Register(e)
+
 	return &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
+		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
 		Handler:      e,
 		ReadTimeout:  httpReadTimeout,
 		WriteTimeout: httpWriteTimeout,
