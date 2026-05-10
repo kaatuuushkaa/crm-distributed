@@ -98,3 +98,11 @@ func (f *File) IsImage() bool {
 
 	return false
 }
+
+func (t FileOwnerType) IsValid() bool {
+	switch t {
+	case FileOwnerTask, FileOwnerCompany, FileOwnerLegalEntity:
+		return true
+	}
+	return false
+}
