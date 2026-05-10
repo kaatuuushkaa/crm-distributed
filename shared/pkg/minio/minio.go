@@ -110,7 +110,12 @@ func (c *Client) PresignedURL(ctx context.Context, key string, expires time.Dura
 	return u.String(), nil
 }
 
-func (c *Client) Check(ctx context.Context) error {
+//func (c *Client) Check(ctx context.Context) error {
+//	_, err := c.mc.BucketExists(ctx, c.bucket)
+//	return err
+//}
+
+func (c *Client) Ping(ctx context.Context) error {
 	_, err := c.mc.BucketExists(ctx, c.bucket)
 	return err
 }
