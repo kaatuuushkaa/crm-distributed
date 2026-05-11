@@ -1,9 +1,11 @@
 package main
 
 import (
+	_ "crm-distributed/cmd/task-service/docs"
 	"crm-distributed/cmd/task-service/internal/federation"
 	"crm-distributed/cmd/task-service/internal/project"
 	"github.com/go-playground/validator/v10"
+	echoSwagger "github.com/swaggo/echo-swagger"
 	"log/slog"
 	"net/http"
 	"time"
@@ -77,6 +79,10 @@ func Server(
 
 	api := e.Group("/api/v1")
 	protected := api.Group("", internalmiddleware.Auth(jwtService))
+
+	if cfg.Env == "development" {
+		e.GET("/swagger/*", echoSwagger.WrapHandler)
+	}
 
 	authRepo := auth.NewUserRepository(db, log)
 	authUsecase := auth.NewUsecase(authRepo, jwtService, rdb, log, cfg.Env != "production")

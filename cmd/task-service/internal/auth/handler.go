@@ -37,6 +37,16 @@ type loginRequest struct {
 	RememberMe bool   `json:"remember_me"`
 }
 
+// Register godoc
+// @Summary      Регистрация пользователя
+// @Description  Создаёт новую учётную запись
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param request body object true "Данные пользователя"
+// @Success      201  {object}  map[string]string
+// @Failure      409  {object}  map[string]string
+// @Router       /auth/register [post]
 func (h *Handler) register(c echo.Context) error {
 	var req registerRequest
 	if err := c.Bind(&req); err != nil {
@@ -65,6 +75,16 @@ func (h *Handler) register(c echo.Context) error {
 	})
 }
 
+// Login godoc
+// @Summary      Вход в систему
+// @Description  Возвращает JWT access и refresh токены
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param request body object true "Email и пароль"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      401  {object}  map[string]string
+// @Router       /auth/login [post]
 func (h *Handler) login(c echo.Context) error {
 	var req loginRequest
 	if err := c.Bind(&req); err != nil {

@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
 
+	_ "crm-distributed/cmd/task-service/docs"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"golang.org/x/sync/errgroup"
+	echoSwagger "github.com/swaggo/echo-swagger"
 	"google.golang.org/grpc"
 
 	"crm-distributed/cmd/document-service/config"
@@ -170,6 +172,10 @@ func newHTTPServer(
 	api := e.Group("/api/v1")
 	leHTTP.Register(api)
 	fileHTTP.Register(api)
+
+	if cfg.Env == "development" {
+		e.GET("/swagger/*", echoSwagger.WrapHandler)
+	}
 
 	return &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),

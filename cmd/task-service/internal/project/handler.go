@@ -64,6 +64,16 @@ func domainToResponse(p *domain.Project) projectResponse {
 	}
 }
 
+// CreateProject godoc
+// @Summary      Создать проект
+// @Description  Создаёт проект внутри компании
+// @Tags         projects
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param request body object true "Параметры проекта"
+// @Success      201  {object}  domain.Project
+// @Router       /projects [post]
 func (h *Handler) create(c echo.Context) error {
 	var req createProjectRequest
 	if err := c.Bind(&req); err != nil {
