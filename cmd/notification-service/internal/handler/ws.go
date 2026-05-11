@@ -59,7 +59,7 @@ func (h *WSHandler) handle(c echo.Context) error {
 		return nil
 	}
 
-	h.hub.Register(c.Request().Context(), claims.UUID.String(), conn)
+	h.hub.Register(c.Request().Context(), claims.Email, conn)
 
 	return nil
 }
