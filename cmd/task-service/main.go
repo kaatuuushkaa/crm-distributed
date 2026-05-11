@@ -1,3 +1,20 @@
+// @title           CRM Distributed API
+// @version         1.0
+// @description     Масштабируемая микросервисная CRM-система на Go
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name   Торощина Екатерина
+// @contact.email  katya@crm.ru
+
+// @license.name  MIT
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите токен в формате: Bearer {token}
 package main
 
 import (

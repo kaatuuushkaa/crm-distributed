@@ -13,6 +13,7 @@ import (
 
 type FederationUsecase interface {
 	Create(ctx context.Context, cmd CreateFederationCommand) (*domain.Federation, error)
+	CreateCompany(ctx context.Context, cmd CreateCompanyCommand) (uuid.UUID, error)
 	GetByUUID(ctx context.Context, uid uuid.UUID) (*domain.Federation, error)
 	GetByUserUUID(ctx context.Context, userUUID uuid.UUID) ([]domain.Federation, error)
 	AddUser(ctx context.Context, federationUUID, userUUID uuid.UUID) error
@@ -22,6 +23,13 @@ type CreateFederationCommand struct {
 	Name        string
 	CallerEmail string
 	CallerUUID  uuid.UUID
+}
+
+type CreateCompanyCommand struct {
+	FederationUUID uuid.UUID
+	Name           string
+	CallerEmail    string
+	CallerUUID     uuid.UUID
 }
 
 type federationUsecase struct {
@@ -58,6 +66,27 @@ func (u *federationUsecase) Create(ctx context.Context, cmd CreateFederationComm
 	)
 
 	return federation, nil
+}
+func (uc *federationUsecase) CreateCompany(ctx context.Context, cmd CreateCompanyCommand) (uuid.UUID, error) {
+	companyUUID := uuid.New()
+
+	if err := uc.repo.CreateCompany(ctx,
+		companyUUID,
+		cmd.FederationUUID,
+		cmd.Name,
+		cmd.CallerEmail,
+		cmd.CallerUUID,
+	); err != nil {
+		return uuid.Nil, fmt.Errorf("create company: %w", err)
+	}
+
+	uc.log.InfoContext(ctx, "company created",
+		"company_uuid", companyUUID,
+		"federation_uuid", cmd.FederationUUID,
+		"created_by", cmd.CallerEmail,
+	)
+
+	return companyUUID, nil
 }
 
 func (u *federationUsecase) GetByUUID(ctx context.Context, uid uuid.UUID) (*domain.Federation, error) {

@@ -16,6 +16,7 @@ import (
 
 type FederationRepository interface {
 	Create(ctx context.Context, f domain.Federation) error
+	CreateCompany(ctx context.Context, companyUUID, federationUUID uuid.UUID, name, callerEmail string, callerUUID uuid.UUID) error
 	GetByUUID(ctx context.Context, uid uuid.UUID) (*domain.Federation, error)
 	GetByUserUUID(ctx context.Context, userUUID uuid.UUID) ([]domain.Federation, error)
 	AddUser(ctx context.Context, fu domain.FederationUser) error
@@ -203,4 +204,16 @@ func (r *pgFederationRepository) getFederationUsers(ctx context.Context, federat
 	}
 
 	return users, rows.Err()
+}
+func (r *pgFederationRepository) CreateCompany(ctx context.Context, companyUUID, federationUUID uuid.UUID, name, callerEmail string, callerUUID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, "company.create",
+		`INSERT INTO companies (uuid, federation_uuid, name, created_by, created_by_uuid, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, now(), now())`,
+		companyUUID, federationUUID, name, callerEmail, callerUUID,
+	)
+	if err != nil {
+		return fmt.Errorf("create company: %w", err)
+	}
+
+	return nil
 }

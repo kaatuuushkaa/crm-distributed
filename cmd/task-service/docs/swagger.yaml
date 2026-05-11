@@ -1,0 +1,783 @@
+basePath: /api/v1
+definitions:
+  crm-distributed_shared_domain.Activity:
+    properties:
+      createdAt:
+        type: string
+      createdBy:
+        $ref: '#/definitions/crm-distributed_shared_domain.User'
+      description:
+        type: string
+      entityType:
+        type: string
+      entityUUID:
+        type: string
+      meta:
+        additionalProperties: {}
+        type: object
+      type:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  crm-distributed_shared_domain.Company:
+    properties:
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      createdByUUID:
+        type: string
+      deletedAt:
+        type: string
+      federationUUID:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.CompanyField'
+        type: array
+      meta:
+        items:
+          format: int32
+          type: integer
+        type: array
+      name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      projects:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.Project'
+        type: array
+      projectsTotal:
+        type: integer
+      updatedAt:
+        type: string
+      userTotal:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.CompanyUser'
+        type: array
+      uuid:
+        type: string
+    type: object
+  crm-distributed_shared_domain.CompanyField:
+    properties:
+      companyUUID:
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      dataType:
+        allOf:
+        - $ref: '#/definitions/crm-distributed_shared_domain.FieldDataType'
+        maximum: 14
+        minimum: 0
+      deletedAt:
+        type: string
+      description:
+        maxLength: 5000
+        type: string
+      hash:
+        type: string
+      icon:
+        maxLength: 50
+        type: string
+      meta:
+        items:
+          format: int32
+          type: integer
+        type: array
+      name:
+        maxLength: 30
+        minLength: 1
+        type: string
+      projectUUID:
+        items:
+          type: string
+        type: array
+      requiredOnStatuses:
+        items:
+          type: integer
+        type: array
+      style:
+        maxLength: 20
+        type: string
+      updatedAt:
+        type: string
+      uuid:
+        type: string
+    required:
+    - companyUUID
+    type: object
+  crm-distributed_shared_domain.CompanyUser:
+    properties:
+      added_at:
+        type: string
+      companyUUID:
+        type: string
+      federationUUID:
+        type: string
+      user:
+        $ref: '#/definitions/crm-distributed_shared_domain.User'
+      uuid:
+        type: string
+    required:
+    - companyUUID
+    - federationUUID
+    - uuid
+    type: object
+  crm-distributed_shared_domain.Federation:
+    properties:
+      companies:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.Company'
+        type: array
+      companiesTotal:
+        type: integer
+      createdAt:
+        type: string
+      createdBy:
+        description: email создателя
+        type: string
+      createdByUUID:
+        type: string
+      deletedAt:
+        type: string
+      meta:
+        items:
+          format: int32
+          type: integer
+        type: array
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      updatedAt:
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.FederationUser'
+        type: array
+      usersTotal:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  crm-distributed_shared_domain.FederationUser:
+    properties:
+      added_at:
+        type: string
+      federationUUID:
+        type: string
+      user:
+        $ref: '#/definitions/crm-distributed_shared_domain.User'
+      uuid:
+        type: string
+    required:
+    - federationUUID
+    - uuid
+    type: object
+  crm-distributed_shared_domain.FieldDataType:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    type: integer
+    x-enum-varnames:
+    - FieldInteger
+    - FieldFloat
+    - FieldString
+    - FieldText
+    - FieldBool
+    - FieldSwitch
+    - FieldArray
+    - FieldData
+    - FieldDataArray
+    - FieldPhone
+    - FieldLink
+    - FieldEmail
+    - FieldTime
+    - FieldDateTime
+    - FieldPeople
+  crm-distributed_shared_domain.ProfilePhotoDTO:
+    properties:
+      large:
+        type: string
+      medium:
+        type: string
+      small:
+        type: string
+    type: object
+  crm-distributed_shared_domain.ProfilePreferences:
+    properties:
+      timezone:
+        type: string
+    type: object
+  crm-distributed_shared_domain.Project:
+    properties:
+      companyUUID:
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      deletedAt:
+        type: string
+      description:
+        maxLength: 5000
+        type: string
+      federationUUID:
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.CompanyField'
+        type: array
+      fieldsSort:
+        items:
+          type: string
+        type: array
+      meta:
+        items:
+          format: int32
+          type: integer
+        type: array
+      name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      options:
+        $ref: '#/definitions/crm-distributed_shared_domain.ProjectOptions'
+      responsibleBy:
+        type: string
+      statusCode:
+        type: integer
+      statusGraph:
+        $ref: '#/definitions/crm-distributed_shared_domain.StatusGraph'
+      statusSort:
+        items:
+          type: integer
+        type: array
+      statusUpdatedAt:
+        type: string
+      updatedAt:
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.ProjectUser'
+        type: array
+      uuid:
+        type: string
+    type: object
+  crm-distributed_shared_domain.ProjectOptions:
+    properties:
+      color:
+        type: string
+      require_cancelation_comment:
+        type: boolean
+      require_done_comment:
+        type: boolean
+      status_enable:
+        type: boolean
+    type: object
+  crm-distributed_shared_domain.ProjectUser:
+    properties:
+      added_at:
+        type: string
+      companyUUID:
+        type: string
+      federationUUID:
+        type: string
+      projectUUID:
+        type: string
+      user:
+        $ref: '#/definitions/crm-distributed_shared_domain.User'
+      uuid:
+        type: string
+    required:
+    - companyUUID
+    - federationUUID
+    - projectUUID
+    - uuid
+    type: object
+  crm-distributed_shared_domain.StatusGraph:
+    properties:
+      current:
+        type: string
+      graph:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+    type: object
+  crm-distributed_shared_domain.Task:
+    properties:
+      activities:
+        items:
+          $ref: '#/definitions/crm-distributed_shared_domain.Activity'
+        type: array
+      activitiesTotal:
+        format: int64
+        type: integer
+      activityAt:
+        type: string
+      childrenTotal:
+        type: integer
+      childrenUUIDs:
+        items:
+          type: string
+        type: array
+      coWorkersBy:
+        description: соисполнитель и наблюдатель
+        items:
+          type: string
+        type: array
+      commentsTotal:
+        type: integer
+      companyUUID:
+        type: string
+      createdAt:
+        type: string
+      createdBy:
+        description: роли на задаче
+        type: string
+      deletedAt:
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      dirty:
+        additionalProperties: {}
+        description: для постройки изменений activity
+        type: object
+      federationUUID:
+        type: string
+      fields:
+        additionalProperties: {}
+        type: object
+      finishTo:
+        description: дедлайн
+        type: string
+      finishedAt:
+        type: string
+      finishedBy:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      implementBy:
+        type: string
+      isEpic:
+        description: задача является эпиком(контейнером для подзадач)
+        type: boolean
+      managedBy:
+        type: string
+      meta:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      path:
+        description: иерархмческий путь для поддержки подзадач
+        items:
+          type: string
+        type: array
+      people:
+        items:
+          type: string
+        type: array
+      priority:
+        type: integer
+      projectUUID:
+        type: string
+      rawFields:
+        additionalProperties: {}
+        type: object
+      responsibleBy:
+        type: string
+      status:
+        type: integer
+      tags:
+        items:
+          type: string
+        type: array
+      updatedAt:
+        type: string
+      uuid:
+        type: string
+      watchBy:
+        items:
+          type: string
+        type: array
+    required:
+    - companyUUID
+    - federationUUID
+    - projectUUID
+    type: object
+  crm-distributed_shared_domain.User:
+    properties:
+      color:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      email:
+        type: string
+      hasPhoto:
+        type: boolean
+      isValid:
+        type: boolean
+      lname:
+        maxLength: 30
+        type: string
+      meta:
+        type: string
+      name:
+        maxLength: 30
+        type: string
+      password:
+        type: string
+      phone:
+        format: int64
+        type: integer
+      photo:
+        $ref: '#/definitions/crm-distributed_shared_domain.ProfilePhotoDTO'
+      pname:
+        maxLength: 30
+        type: string
+      preferences:
+        $ref: '#/definitions/crm-distributed_shared_domain.ProfilePreferences'
+      provider:
+        type: integer
+      updatedAt:
+        type: string
+      uuid:
+        type: string
+      validAt:
+        type: string
+      validationSendAt:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: katya@crm.ru
+    name: Торощина Екатерина
+  description: Масштабируемая микросервисная CRM-система на Go
+  license:
+    name: MIT
+  termsOfService: http://swagger.io/terms/
+  title: CRM Distributed API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Возвращает JWT access и refresh токены
+      parameters:
+      - description: Email и пароль
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Вход в систему
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую учётную запись
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /federations:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт верхний уровень иерархии организации
+      parameters:
+      - description: Название федерации
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/crm-distributed_shared_domain.Federation'
+      security:
+      - BearerAuth: []
+      summary: Создать федерацию
+      tags:
+      - federations
+  /federations/{uuid}/companies:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт компанию внутри федерации
+      parameters:
+      - description: UUID федерации
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Название компании
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Создать компанию
+      tags:
+      - federations
+  /projects:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт проект внутри компании
+      parameters:
+      - description: Параметры проекта
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/crm-distributed_shared_domain.Project'
+      security:
+      - BearerAuth: []
+      summary: Создать проект
+      tags:
+      - projects
+  /projects/{uuid}/tasks:
+    get:
+      description: Возвращает задачи проекта с фильтрацией
+      parameters:
+      - description: UUID проекта
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Фильтр по статусу
+        in: query
+        name: status
+        type: integer
+      - description: Поиск по названию
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Список задач проекта
+      tags:
+      - tasks
+  /tasks:
+    post:
+      consumes:
+      - application/json
+      description: Создаёт новую задачу в проекте с атомарным счётчиком (FOR UPDATE)
+      parameters:
+      - description: Параметры задачи
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/crm-distributed_shared_domain.Task'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Создать задачу
+      tags:
+      - tasks
+  /tasks/{uuid}:
+    delete:
+      description: Мягкое удаление задачи (soft delete)
+      parameters:
+      - description: UUID задачи
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Удалить задачу
+      tags:
+      - tasks
+    get:
+      description: Возвращает задачу по UUID
+      parameters:
+      - description: UUID задачи
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/crm-distributed_shared_domain.Task'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Получить задачу
+      tags:
+      - tasks
+  /tasks/{uuid}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Переводит задачу в новый статус по статусному графу
+      parameters:
+      - description: UUID задачи
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Новый статус
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Изменить статус задачи
+      tags:
+      - tasks
+securityDefinitions:
+  BearerAuth:
+    description: 'Введите токен в формате: Bearer {token}'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

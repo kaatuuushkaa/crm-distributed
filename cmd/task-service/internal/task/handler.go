@@ -94,12 +94,18 @@ func domainToResponse(t *domain.Task) taskResponse {
 	}
 }
 
-// @Summary Создать задачу
-// @Tags tasks
-// @Accept json
-// @Produce json
-// @Success 201 {object} taskResponse
-// @Router /tasks [post]
+// CreateTask godoc
+// @Summary      Создать задачу
+// @Description  Создаёт новую задачу в проекте с атомарным счётчиком (FOR UPDATE)
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param request body object true "Параметры задачи"
+// @Success      201  {object}  domain.Task
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Router       /tasks [post]
 func (h *Handler) create(c echo.Context) error {
 	var req createRequest
 	if err := c.Bind(&req); err != nil {
@@ -133,7 +139,16 @@ func (h *Handler) create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, domainToResponse(task))
 }
 
-// getByUUID обрабатывает GET /api/v1/tasks/:uuid.
+// GetTask godoc
+// @Summary      Получить задачу
+// @Description  Возвращает задачу по UUID
+// @Tags         tasks
+// @Produce      json
+// @Security     BearerAuth
+// @Param uuid path string true "UUID задачи"
+// @Success      200  {object}  domain.Task
+// @Failure      404  {object}  map[string]string
+// @Router       /tasks/{uuid} [get]
 func (h *Handler) getByUUID(c echo.Context) error {
 	uid, err := uuid.Parse(c.Param("uuid"))
 	if err != nil {
@@ -148,7 +163,17 @@ func (h *Handler) getByUUID(c echo.Context) error {
 	return c.JSON(http.StatusOK, domainToResponse(task))
 }
 
-// list обрабатывает GET /api/v1/projects/:uuid/tasks.
+// ListTasks godoc
+// @Summary      Список задач проекта
+// @Description  Возвращает задачи проекта с фильтрацией
+// @Tags         tasks
+// @Produce      json
+// @Security     BearerAuth
+// @Param uuid path string true "UUID проекта"
+// @Param status query int false "Фильтр по статусу"
+// @Param search query string false "Поиск по названию"
+// @Success      200  {object}  map[string]interface{}
+// @Router       /projects/{uuid}/tasks [get]
 func (h *Handler) list(c echo.Context) error {
 	projectUUID, err := uuid.Parse(c.Param("uuid"))
 	if err != nil {
@@ -185,7 +210,18 @@ func (h *Handler) list(c echo.Context) error {
 	})
 }
 
-// updateStatus обрабатывает PATCH /api/v1/tasks/:uuid/status.
+// UpdateStatus godoc
+// @Summary      Изменить статус задачи
+// @Description  Переводит задачу в новый статус по статусному графу
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param uuid path string true "UUID задачи"
+// @Param request body object true "Новый статус"
+// @Success      204
+// @Failure      400  {object}  map[string]string
+// @Router       /tasks/{uuid}/status [patch]
 func (h *Handler) updateStatus(c echo.Context) error {
 	uid, err := uuid.Parse(c.Param("uuid"))
 	if err != nil {
@@ -213,7 +249,15 @@ func (h *Handler) updateStatus(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// delete обрабатывает DELETE /api/v1/tasks/:uuid.
+// DeleteTask godoc
+// @Summary      Удалить задачу
+// @Description  Мягкое удаление задачи (soft delete)
+// @Tags         tasks
+// @Security     BearerAuth
+// @Param uuid path string true "UUID задачи"
+// @Success      204
+// @Failure      404  {object}  map[string]string
+// @Router       /tasks/{uuid} [delete]
 func (h *Handler) delete(c echo.Context) error {
 	uid, err := uuid.Parse(c.Param("uuid"))
 	if err != nil {

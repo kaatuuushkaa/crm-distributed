@@ -21,6 +21,7 @@ func NewHandler(uc FederationUsecase) *Handler {
 
 func (h *Handler) Register(g *echo.Group) {
 	g.POST("/federations", h.create)
+	g.POST("/federations/:uuid/companies", h.createCompany)
 	g.GET("/federations/:uuid", h.getByUUID)
 	g.GET("/federations", h.listByUser)
 	g.POST("/federations/:uuid/users", h.addUser)
@@ -46,6 +47,16 @@ func domainToResponse(f *domain.Federation) federationResponse {
 	}
 }
 
+// CreateFederation godoc
+// @Summary      Создать федерацию
+// @Description  Создаёт верхний уровень иерархии организации
+// @Tags         federations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param request body object true "Название федерации"
+// @Success      201  {object}  domain.Federation
+// @Router       /federations [post]
 func (h *Handler) create(c echo.Context) error {
 	var req createFederationRequest
 	if err := c.Bind(&req); err != nil {
@@ -134,4 +145,53 @@ func (h *Handler) handleError(c echo.Context, err error) error {
 	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal server error")
 	}
+}
+
+type createCompanyRequest struct {
+	Name string `json:"name" validate:"required,min=1,max=200"`
+}
+
+// CreateCompany godoc
+// @Summary      Создать компанию
+// @Description  Создаёт компанию внутри федерации
+// @Tags         federations
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param uuid path string true "UUID федерации"
+// @Param request body object true "Название компании"
+// @Success      201  {object}  map[string]interface{}
+// @Router       /federations/{uuid}/companies [post]
+func (h *Handler) createCompany(c echo.Context) error {
+	federationUUID, err := uuid.Parse(c.Param("uuid"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid federation uuid")
+	}
+
+	var req createCompanyRequest
+	if err = c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	if err = c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	callerEmail, _ := c.Get(middleware.KeyCallerEmail).(string)
+	callerUUID, _ := c.Get(middleware.KeyCallerUUID).(uuid.UUID)
+
+	companyUUID, err := h.uc.CreateCompany(c.Request().Context(), CreateCompanyCommand{
+		FederationUUID: federationUUID,
+		Name:           req.Name,
+		CallerEmail:    callerEmail,
+		CallerUUID:     callerUUID,
+	})
+	if err != nil {
+		return h.handleError(c, err)
+	}
+
+	return c.JSON(http.StatusCreated, map[string]any{
+		"uuid": companyUUID,
+		"name": req.Name,
+	})
 }
